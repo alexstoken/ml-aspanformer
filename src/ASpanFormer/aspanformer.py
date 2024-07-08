@@ -9,6 +9,9 @@ from .aspan_module import LocalFeatureTransformer_Flow, LocalFeatureTransformer,
 from .utils.coarse_matching import CoarseMatching
 from .utils.fine_matching import FineMatching
 
+from typing import Dict
+from kornia.core import Module, Tensor
+
 
 class ASpanFormer(nn.Module):
     def __init__(self, config):
@@ -100,6 +103,21 @@ class ASpanFormer(nn.Module):
         if online_resize:
             data['mkpts0_f']*=data['online_resize_scale0']
             data['mkpts1_f']*=data['online_resize_scale1']
+
+        rename_keys: Dict[str, str] = {
+            "mkpts0_f": 'keypoints0',
+            "mkpts1_f": 'keypoints1',
+            "mconf": 'confidence',
+            "b_ids": 'batch_indexes',
+        }
+        out: Dict[str, Tensor] = {}
+        for k, v in rename_keys.items():
+            _d = data[k]
+            if isinstance(_d, Tensor):
+                out[v] = _d
+            else:
+                raise TypeError(f'Expected Tensor for item `{k}`. Gotcha {type(_d)}')
+        return out
         
     def load_state_dict(self, state_dict, *args, **kwargs):
         for k in list(state_dict.keys()):
@@ -111,6 +129,7 @@ class ASpanFormer(nn.Module):
         return super().load_state_dict(state_dict, *args, **kwargs)
     
     def resize_input(self,data,train_res,df=32):
+        device = data['image0'].device
         h0,w0,h1,w1=data['image0'].shape[2],data['image0'].shape[3],data['image1'].shape[2],data['image1'].shape[3]
         data['image0'],data['image1']=self.resize_df(data['image0'],df),self.resize_df(data['image1'],df)
         
@@ -120,8 +139,8 @@ class ASpanFormer(nn.Module):
             train_res_h,train_res_w=train_res[0],train_res[1]
         data['pos_scale0'],data['pos_scale1']=[train_res_h/data['image0'].shape[2],train_res_w/data['image0'].shape[3]],\
                                   [train_res_h/data['image1'].shape[2],train_res_w/data['image1'].shape[3]] 
-        data['online_resize_scale0'],data['online_resize_scale1']=torch.tensor([w0/data['image0'].shape[3],h0/data['image0'].shape[2]])[None].cuda(),\
-                                                                    torch.tensor([w1/data['image1'].shape[3],h1/data['image1'].shape[2]])[None].cuda()
+        data['online_resize_scale0'],data['online_resize_scale1']=torch.tensor([w0/data['image0'].shape[3],h0/data['image0'].shape[2]])[None].to(device),\
+                                                                    torch.tensor([w1/data['image1'].shape[3],h1/data['image1'].shape[2]])[None].to(device)
 
     def resize_df(self,image,df=32):
         h,w=image.shape[2],image.shape[3]
