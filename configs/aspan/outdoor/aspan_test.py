@@ -1,4 +1,4 @@
-from aspanformer.src.config.default import _CN as cfg
+from src.config.default import _CN as cfg
 
 cfg = cfg.clone()
 cfg.ASPAN.COARSE.COARSEST_LEVEL= [36,36]
